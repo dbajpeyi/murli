@@ -1,0 +1,64 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  engine-tests:
+    name: Engine tests (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run DSP tests
+        run: |
+          cmake -B build-tests -S tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-tests -j
+          ./build-tests/murli_engine_test
+
+  macos:
+    name: macOS (VST3 / AU / Standalone, universal)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -B build -G Xcode \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
+
+      - name: Build
+        run: cmake --build build --config Release -j 4
+
+      - name: Ad-hoc sign
+        run: |
+          cd build/Murli_artefacts/Release
+          codesign --force --deep --sign - VST3/Murli.vst3
+          codesign --force --deep --sign - AU/Murli.component
+          codesign --force --deep --sign - Standalone/Murli.app
+
+      - name: Validate with pluginval
+        run: |
+          curl -sSfL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 8 --validate-in-process \
+            --validate build/Murli_artefacts/Release/VST3/Murli.vst3
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R build/Murli_artefacts/Release/AU/Murli.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aumu Mrli Dbjp
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cd build/Murli_artefacts/Release
+          ditto -c -k --keepParent VST3/Murli.vst3 "$GITHUB_WORKSPACE/dist/Murli-VST3-macOS.zip"
+          ditto -c -k --keepParent AU/Murli.component "$GITHUB_WORKSPACE/dist/Murli-AU-macOS.zip"
+          ditto -c -k --keepParent Standalone/Murli.app "$GITHUB_WORKSPACE/dist/Murli-App-macOS.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Murli-macOS
+          path: dist/*.zip
