@@ -168,10 +168,6 @@ public:
         const double vel = std::clamp ((double) velocity, 0.0, 1.0);
         const double v = std::pow (vel, k.velExponent);
 
-        // A hammer landing on a moving reed absorbs part of its motion.
-        if (active)
-            for (int m = 0; m < kNumModes; ++m) { zr[(size_t) m] *= 0.45; zi[(size_t) m] *= 0.45; }
-
         // Felt contact lasts ~3/4 (ff) to 1 (pp) period; a Gaussian force pulse
         // filters the upper modes smoothly (no comb nulls).
         const double tDwell = std::clamp ((0.75 + 0.25 * (1.0 - vel)) / k.f0, 0.0003, 0.02);
@@ -190,6 +186,11 @@ public:
         onsetLength = std::max (1, (int) (std::max (periods / k.f0, 0.002) * fs));
         onsetPos = 0;
         onsetSoft = (float) (1.0 - vel);
+
+        // A hammer landing on a moving reed absorbs about half its motion. The felt does
+        // that over the contact, not instantly: an instant cut is a step in the waveform,
+        // which clicked on every re-strike (always with the sustain pedal down).
+        absorb = active ? std::pow (0.45, 1.0 / onsetLength) : 1.0;
         prevOnset = 0.0;
 
         noiseAmp = (float) (0.025 * vel * vel * k.swingFF);
@@ -260,8 +261,8 @@ public:
                     for (size_t m = 0; m < kNumModes; ++m)
                     {
                         const double g = target[m] * dEnv;
-                        zr[m] += g * er[m];
-                        zi[m] += g * ei[m];
+                        zr[m] = zr[m] * absorb + g * er[m];
+                        zi[m] = zi[m] * absorb + g * ei[m];
                         const double c = k.cosInc[m], s = k.sinInc[m];
                         const double nr = er[m] * c - ei[m] * s;
                         ei[m] = er[m] * s + ei[m] * c;
@@ -323,7 +324,7 @@ private:
     std::array<double, kNumModes> target {};
     int onsetLength = 1, onsetPos = 1;
     float onsetSoft = 0.0f;
-    double prevOnset = 0.0, dampRamp = 0.0, sampleRate = 48000.0;
+    double prevOnset = 0.0, absorb = 1.0, dampRamp = 0.0, sampleRate = 48000.0;
 
     float noiseAmp = 0, noiseEnv = 0, noiseDecay = 0, n1 = 0, n2 = 0;
     int noiseSamples = 0;

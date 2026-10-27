@@ -188,6 +188,27 @@ int main (int argc, char** argv)
         CHECK (e.voicesActive() <= 5, "voices not retired");
     }
 
+    // --- re-striking ringing reeds must not click (sustain-pedal chords) -------------------
+    {
+        Engine e; e.prepare (fs); e.setParams (dry); e.setSustain (true);
+        std::vector<float> x ((size_t) fs);
+        const int chord[] = { 48, 52, 55, 59, 62, 64, 67, 71 };
+        const int t1 = (int) (0.6 * fs);
+        for (int n : chord) e.noteOn (n, 0.85f);
+        e.render (x.data(), t1);
+        for (int n : chord) { e.noteOff (n); e.noteOn (n, 0.85f); }   // pedal holds, keys re-struck
+        e.render (x.data() + t1, (int) x.size() - t1);
+        auto d2 = [&] (int a, int b)   // largest second difference: a step shows up here
+        {
+            double m = 0;
+            for (int i = a; i < b; ++i) m = std::max (m, (double) std::abs (x[(size_t) i] - 2 * x[(size_t) i - 1] + x[(size_t) i - 2]));
+            return m;
+        };
+        const double ratio = d2 (t1, t1 + (int) (0.004 * fs)) / d2 ((int) (0.3 * fs), (int) (0.55 * fs));
+        std::printf ("\nRe-strike under sustain: transient %.1fx steady ringing\n", ratio);
+        CHECK (ratio < 3.0, "re-striking a ringing reed clicks (%.1fx)", ratio);
+    }
+
     // --- NaN / denormal / extreme settings --------------------------------------------
     {
         EngineParams p; p.volume = 1; p.vibrato = 1; p.speed = 9; p.bark = 1.5f; p.driveDb = 12; p.attack = 2; p.noise = 1;
