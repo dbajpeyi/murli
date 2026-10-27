@@ -30,6 +30,25 @@ with or endorsed by the maker of the original instrument.
 | **Noise** | Preamp hiss and mains hum, for authenticity. |
 | **Tune** | Reference pitch from A = 430 to 450 Hz. |
 
+### Rear panel: effects-loop mod
+
+![Rear panel](docs/rear-panel.png)
+
+Click **REAR PANEL** to turn the piano round. A send/return loop has been added to the
+amplifier, between the preamp and the volume pot, the way a tech would mod a real amp
+board. Three stompboxes are patched into it. As on a real pedalboard, the signal runs right
+to left: SEND → chorus → echo → spring → RETURN. Click a footswitch to engage or bypass
+its pedal. The loop is where Murli becomes stereo, and none of the pedals add latency.
+
+| Pedal | Controls | Based on |
+|-------|----------|----------|
+| **Undertow** chorus | Dimension, Shape, Rate, Depth, Animate, Intensity | The Sea Device / EQD Sea Machine circuit. A PT2399 delay is swept by an LM324 triangle-to-square LFO. Animate sets the chip's base delay, so the same LFO swings the pitch further. Dimension regenerates around the chip. A second read with the inverted LFO feeds the right side. The blue LED shows the LFO rate even when the pedal is bypassed. |
+| **Magdrum** drum echo | Time, Swell, Tone, Heads (12-way), Mix, Echo/Repeat/Swell | The Binson Echorec 2: four playback heads around a magnetic drum at about 75/150/225/300 ms. A valve record amp saturates as the swell builds, and the drum adds a little wow and some head-gap treble loss. The heads are panned across the stereo field. |
+| **Coil** spring reverb | Dwell, Decay, Tone, Mix | A two-spring amp tank. Each spring is a delay loop around a chain of dispersive all-pass filters, which produces the falling "drip" chirps. Dwell drives the tank's transducer into saturation, which gives the crash on hard notes. |
+
+The echo and spring keep ringing for a moment after you bypass them, then go idle and stop
+using CPU.
+
 Double-click a knob to reset it. Hover over a knob to read its exact value. In the
 standalone app the computer keyboard plays notes (A W S E D F T G … from middle C), and
 the sustain pedal (CC64) works.
@@ -56,7 +75,9 @@ allocate memory on the audio thread.
    anti-derivative anti-aliasing. Its closed-loop gain comes from the R-10 / VIBRATO-pot /
    CdS-cell network, which is driven by a twin-T-style LFO through an LED with fast-attack,
    slow-release photocell behaviour.
-5. **Power amp and speakers.** Audio-taper volume, soft rail clipping, and an open-baffle
+5. **Effects loop (`Pedals.h`).** The chorus, drum echo and spring tank described above.
+   The output stage runs once per side only when a pedal is active.
+6. **Power amp and speakers.** Audio-taper volume, soft rail clipping, and an open-baffle
    oval-speaker voicing with roughly 95 Hz – 7 kHz bandwidth.
 
 The physical figures (mode amplitudes, decay laws, swing per register, the pickup corner,

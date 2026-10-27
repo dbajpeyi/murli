@@ -3,7 +3,7 @@
 using namespace juce;
 
 MurliEditor::MurliEditor (MurliProcessor& p)
-    : AudioProcessorEditor (p), proc (p), keyboard (p.keyboardState)
+    : AudioProcessorEditor (p), proc (p), keyboard (p.keyboardState), rear (p.apvts, lnf)
 {
     setLookAndFeel (&lnf);
     canvas.setLookAndFeel (&lnf);
@@ -36,6 +36,14 @@ MurliEditor::MurliEditor (MurliProcessor& p)
     };
     applyFinish (proc.getFinish());
 
+    // The back of the instrument, with the effects-loop pedalboard.
+    canvas.addChildComponent (rear);
+    canvas.addAndMakeVisible (rearButton);
+    rearButton.setTooltip ("Turn the piano round: effects loop and pedals");
+    rearButton.onClick = [this] { showRear (true); };
+    rear.frontButton.onClick = [this] { showRear (false); };
+    showRear (proc.showingRear());
+
     setResizable (true, true);
     getConstrainer()->setFixedAspectRatio ((double) Cabinet::kWidth / Cabinet::kHeight);
     setResizeLimits (700, 392, 1800, 1008);
@@ -62,7 +70,18 @@ void MurliEditor::applyFinish (const String& name)
     finishButton.setButtonText ("FINISH: " + Finish::byName (name).name.toUpperCase());
     canvas.repaint();
     cabinet.repaint();
+    rear.repaint();
     for (auto& k : knobs) k->repaint();
+}
+
+void MurliEditor::showRear (bool showIt)
+{
+    proc.setShowingRear (showIt);
+    rear.setVisible (showIt);
+    for (Component* c : { (Component*) &meter, (Component*) &powerLamp, (Component*) &vibratoLamp,
+                          (Component*) &finishButton, (Component*) &rearButton })
+        c->setVisible (! showIt);
+    for (auto& k : knobs) k->setVisible (! showIt);
 }
 
 void MurliEditor::resized()
@@ -73,6 +92,8 @@ void MurliEditor::resized()
     cabinet.setBounds (0, 0, Cabinet::kWidth, Cabinet::kHeight);
     meter.setBounds (760, 42, 196, 150);
     finishButton.setBounds (846, 220, 110, 24);
+    rearButton.setBounds (846, 252, 110, 24);
+    rear.setBounds (0, 0, Cabinet::kWidth, Cabinet::kPlateBottom);
     keyboard.setBounds (Cabinet::kCheek, Cabinet::kFeltBottom,
                         Cabinet::kWidth - 2 * Cabinet::kCheek, Cabinet::kKeysBottom - Cabinet::kFeltBottom);
 
@@ -96,4 +117,6 @@ void MurliEditor::timerCallback()
 {
     meter.setLevel (proc.meterLevel.load());
     vibratoLamp.setBrightness (proc.lampLevel.load() * 1.4f);
+    if (rear.isVisible())
+        rear.update (proc.chorusLed.load());
 }

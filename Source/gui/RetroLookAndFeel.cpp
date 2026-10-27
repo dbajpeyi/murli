@@ -73,6 +73,29 @@ void RetroLookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h
     const float angle = startAngle + pos * (endAngle - startAngle);
     const auto& f = *finish;
 
+    if (s.getProperties().contains ("pedal"))   // knurled black stompbox knob
+    {
+        const float kr = radius * 0.92f;
+        g.setColour (Colours::black.withAlpha (0.45f));
+        g.fillEllipse (c.x - kr + 2, c.y - kr + 4, kr * 2, kr * 2);
+        g.setGradientFill (ColourGradient (Colour (0xff3a3836), c.x - kr, c.y - kr, Colour (0xff050505), c.x + kr, c.y + kr, false));
+        g.fillEllipse (c.x - kr, c.y - kr, kr * 2, kr * 2);
+        g.setColour (Colours::white.withAlpha (0.10f));
+        for (int i = 0; i < 36; ++i)   // knurling
+        {
+            const float a = angle + MathConstants<float>::twoPi * (float) i / 36.0f;
+            g.drawLine (c.x + std::sin (a) * kr * 0.78f, c.y - std::cos (a) * kr * 0.78f,
+                        c.x + std::sin (a) * kr * 0.98f, c.y - std::cos (a) * kr * 0.98f, 1.0f);
+        }
+        const float cap = kr * 0.7f;
+        g.setGradientFill (ColourGradient (Colour (0xff2c2a29), c.x, c.y - cap, Colour (0xff0b0b0b), c.x, c.y + cap, false));
+        g.fillEllipse (c.x - cap, c.y - cap, cap * 2, cap * 2);
+        g.setColour (Colours::white);
+        g.drawLine (c.x + std::sin (angle) * kr * 0.25f, c.y - std::cos (angle) * kr * 0.25f,
+                    c.x + std::sin (angle) * kr * 0.92f, c.y - std::cos (angle) * kr * 0.92f, 2.0f);
+        return;
+    }
+
     // drop shadow
     g.setColour (Colours::black.withAlpha (0.35f));
     g.fillEllipse (c.x - radius * 0.86f + 2.5f, c.y - radius * 0.86f + 4.0f, radius * 1.72f, radius * 1.72f);

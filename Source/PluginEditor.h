@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "gui/Widgets.h"
+#include "gui/RearPanel.h"
 
 class MurliEditor final : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -15,6 +16,7 @@ public:
 private:
     void timerCallback() override;
     void applyFinish (const juce::String& name);
+    void showRear (bool rear);
 
     MurliProcessor& proc;
     RetroLookAndFeel lnf;
@@ -25,8 +27,9 @@ private:
     VUMeter meter;
     Lamp powerLamp { juce::Colour (0xffe0281c) }, vibratoLamp { juce::Colour (0xffffa526) };
     RetroKeyboard keyboard;
-    juce::TextButton finishButton;
+    juce::TextButton finishButton, rearButton { "REAR PANEL" };
     std::vector<std::unique_ptr<Knob>> knobs;
+    RearPanel rear;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MurliEditor)
 };

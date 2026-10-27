@@ -37,6 +37,43 @@ AudioProcessorValueTreeState::ParameterLayout MurliProcessor::createLayout()
     add (ParamID::tune,    "Tune",    { 430.0f, 450.0f }, 440.0f,
          A().withLabel ("Hz").withStringFromValueFunction ([] (float v, int) { return "A=" + String (v, 1); }));
 
+    // --- effects loop pedals ---
+    auto toggle = [&] (const char* id, const char* name)
+    {
+        ps.push_back (std::make_unique<AudioParameterBool> (ParameterID { id, 1 }, name, false));
+    };
+    auto choice = [&] (const char* id, const char* name, StringArray items, int def)
+    {
+        ps.push_back (std::make_unique<AudioParameterChoice> (ParameterID { id, 1 }, name, items, def));
+    };
+
+    toggle (ParamID::chOn, "Chorus On");
+    add (ParamID::chRate, "Chorus Rate", NormalisableRange<float> (0.05f, 8.0f, 0.0f, 0.35f), 0.8f,
+         A().withLabel ("Hz").withStringFromValueFunction ([] (float v, int) { return String (v, v < 1 ? 2 : 1) + " Hz"; }));
+    add (ParamID::chShape, "Chorus Shape", { 0.0f, 1.0f }, 0.0f,
+         A().withStringFromValueFunction ([] (float v, int) { return v < 0.05f ? String ("Triangle") : v > 0.95f ? String ("Square") : percent (v, 0); }));
+    add (ParamID::chDepth, "Chorus Depth", { 0.0f, 1.0f }, 0.5f, A().withStringFromValueFunction (tenScale));
+    add (ParamID::chDimension, "Chorus Dimension", { 0.0f, 1.0f }, 0.15f, A().withStringFromValueFunction (tenScale));
+    add (ParamID::chAnimate, "Chorus Animate", { 0.0f, 1.0f }, 0.35f, A().withStringFromValueFunction (tenScale));
+    add (ParamID::chIntensity, "Chorus Intensity", { 0.0f, 1.0f }, 0.6f, A().withStringFromValueFunction (tenScale));
+
+    toggle (ParamID::ecOn, "Echo On");
+    add (ParamID::ecTime, "Echo Time", { 0.5f, 1.5f }, 1.0f,
+         A().withStringFromValueFunction ([] (float v, int) { return String (juce::roundToInt (75.0f * v)) + " ms/head"; }));
+    add (ParamID::ecSwell, "Echo Swell", { 0.0f, 1.0f }, 0.35f, A().withStringFromValueFunction (tenScale));
+    choice (ParamID::ecHeads, "Echo Heads",
+            { "1", "2", "3", "4", "1+2", "2+3", "3+4", "1+3", "2+4", "1+2+3", "2+3+4", "1+2+3+4" }, 3);
+    choice (ParamID::ecMode, "Echo Mode", { "Echo", "Repeat", "Swell" }, 0);
+    add (ParamID::ecTone, "Echo Tone", { 0.0f, 1.0f }, 0.5f, A().withStringFromValueFunction (tenScale));
+    add (ParamID::ecMix, "Echo Mix", { 0.0f, 1.0f }, 0.4f, A().withStringFromValueFunction (tenScale));
+
+    toggle (ParamID::rvOn, "Spring On");
+    add (ParamID::rvDwell, "Spring Dwell", { 0.0f, 1.0f }, 0.5f, A().withStringFromValueFunction (tenScale));
+    add (ParamID::rvDecay, "Spring Decay", { 0.0f, 1.0f }, 0.5f,
+         A().withStringFromValueFunction ([] (float v, int) { return String (1.2 * std::pow (3.75, (double) v), 1) + " s"; }));
+    add (ParamID::rvTone, "Spring Tone", { 0.0f, 1.0f }, 0.5f, A().withStringFromValueFunction (tenScale));
+    add (ParamID::rvMix, "Spring Mix", { 0.0f, 1.0f }, 0.35f, A().withStringFromValueFunction (tenScale));
+
     return { ps.begin(), ps.end() };
 }
 
@@ -53,7 +90,17 @@ MurliProcessor::MurliProcessor()
     p.speaker = apvts.getRawParameterValue (ParamID::speaker);
     p.noise   = apvts.getRawParameterValue (ParamID::noise);
     p.tune    = apvts.getRawParameterValue (ParamID::tune);
+    auto raw = [this] (const char* id) { return apvts.getRawParameterValue (id); };
+    p.chOn = raw (ParamID::chOn); p.chRate = raw (ParamID::chRate); p.chShape = raw (ParamID::chShape);
+    p.chDepth = raw (ParamID::chDepth); p.chDimension = raw (ParamID::chDimension);
+    p.chAnimate = raw (ParamID::chAnimate); p.chIntensity = raw (ParamID::chIntensity);
+    p.ecOn = raw (ParamID::ecOn); p.ecTime = raw (ParamID::ecTime); p.ecSwell = raw (ParamID::ecSwell);
+    p.ecHeads = raw (ParamID::ecHeads); p.ecMode = raw (ParamID::ecMode); p.ecTone = raw (ParamID::ecTone);
+    p.ecMix = raw (ParamID::ecMix);
+    p.rvOn = raw (ParamID::rvOn); p.rvDwell = raw (ParamID::rvDwell); p.rvDecay = raw (ParamID::rvDecay);
+    p.rvTone = raw (ParamID::rvTone); p.rvMix = raw (ParamID::rvMix);
     apvts.state.setProperty ("finish", "Coral", nullptr);
+    apvts.state.setProperty ("rear", false, nullptr);
 }
 
 bool MurliProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -62,8 +109,9 @@ bool MurliProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     return out == AudioChannelSet::mono() || out == AudioChannelSet::stereo();
 }
 
-void MurliProcessor::prepareToPlay (double sampleRate, int)
+void MurliProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    rightScratch.assign ((size_t) std::max (samplesPerBlock, 1), 0.0f);
     setLatencySamples (0);
     engine.prepare (sampleRate);
     keyboardState.reset();
@@ -97,25 +145,44 @@ void MurliProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& midi)
     ep.speaker = p.speaker->load();
     ep.noise   = p.noise->load();
     ep.tuneA4  = p.tune->load();
+
+    auto& c = ep.pedals.chorus;
+    c.on = p.chOn->load() > 0.5f; c.rate = p.chRate->load(); c.shape = p.chShape->load(); c.depth = p.chDepth->load();
+    c.dimension = p.chDimension->load(); c.animate = p.chAnimate->load(); c.intensity = p.chIntensity->load();
+    auto& e = ep.pedals.echo;
+    e.on = p.ecOn->load() > 0.5f; e.time = p.ecTime->load(); e.swell = p.ecSwell->load();
+    e.heads = (int) p.ecHeads->load(); e.mode = (int) p.ecMode->load(); e.tone = p.ecTone->load(); e.mix = p.ecMix->load();
+    auto& r = ep.pedals.reverb;
+    r.on = p.rvOn->load() > 0.5f; r.dwell = p.rvDwell->load(); r.decay = p.rvDecay->load();
+    r.tone = p.rvTone->load(); r.mix = p.rvMix->load();
     engine.setParams (ep);
 
+    // A mono host bus gets the two sides summed; the right side then renders into scratch.
+    const bool stereo = buffer.getNumChannels() > 1;
+    if (! stereo && (int) rightScratch.size() < numSamples)
+        rightScratch.resize ((size_t) numSamples);   // only if the host broke its block-size promise
+    float* left = buffer.getWritePointer (0);
+    float* right = stereo ? buffer.getWritePointer (1) : rightScratch.data();
+
     // Render between events so every note starts on its exact sample.
-    float* out = buffer.getWritePointer (0);
     int pos = 0;
     for (const auto meta : midi)
     {
         const int at = jlimit (0, numSamples, meta.samplePosition);
-        if (at > pos) { engine.render (out + pos, at - pos); pos = at; }
+        if (at > pos) { engine.render (left + pos, right + pos, at - pos); pos = at; }
         handleMidi (meta.getMessage());
     }
     if (pos < numSamples)
-        engine.render (out + pos, numSamples - pos);
+        engine.render (left + pos, right + pos, numSamples - pos);
 
-    for (int ch = 1; ch < buffer.getNumChannels(); ++ch)
-        buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
+    if (! stereo)
+        for (int i = 0; i < numSamples; ++i) left[i] = 0.5f * (left[i] + right[i]);
+    for (int ch = 2; ch < buffer.getNumChannels(); ++ch)
+        buffer.clear (ch, 0, numSamples);
 
     meterLevel.store (buffer.getRMSLevel (0, 0, numSamples));
     lampLevel.store (engine.lamp() * p.vibrato->load());
+    chorusLed.store (engine.chorusLed());
 }
 
 AudioProcessorEditor* MurliProcessor::createEditor()
@@ -131,6 +198,16 @@ String MurliProcessor::getFinish() const
 void MurliProcessor::setFinish (const String& f)
 {
     apvts.state.setProperty ("finish", f, nullptr);
+}
+
+bool MurliProcessor::showingRear() const
+{
+    return (bool) apvts.state.getProperty ("rear", false);
+}
+
+void MurliProcessor::setShowingRear (bool rear)
+{
+    apvts.state.setProperty ("rear", rear, nullptr);
 }
 
 void MurliProcessor::getStateInformation (MemoryBlock& dest)

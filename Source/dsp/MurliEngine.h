@@ -19,6 +19,7 @@ struct EngineParams
     float speaker = 1.0f;    // 0..1
     float noise = 0.0f;      // 0..1
     float tuneA4 = 440.0f;   // Hz
+    PedalSettings pedals;    // rear-panel effects loop
 };
 
 class Engine
@@ -82,9 +83,10 @@ public:
         amp.reset();
     }
 
-    // Renders n mono samples into out (any n).
-    void render (float* out, int n) noexcept
+    // Renders n stereo samples (any n).
+    void render (float* left, float* right, int n) noexcept
     {
+        float* out = left;
         std::fill (out, out + n, 0.0f);
         // Bark and attack act inside every voice; glide them per call to avoid steps.
         const float glide = std::min (1.0f, (float) n / (float) (0.01 * sampleRate));
@@ -100,10 +102,11 @@ public:
             ++count;
         }
         activeVoices = count;
-        amp.process (out, n);
+        amp.process (left, right, n);
     }
 
     float lamp() const noexcept       { return amp.lamp(); }
+    float chorusLed() const noexcept  { return amp.chorusLed(); }
     int   voicesActive() const noexcept { return activeVoices; }
 
 private:
@@ -120,6 +123,7 @@ private:
         s.noise = params.noise;
         amp.setTargets (s);
         amp.setTremoloRate (params.speed);
+        amp.setPedals (params.pedals);
     }
 
     void rebuildKeys (double a4)

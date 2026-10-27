@@ -53,6 +53,7 @@ target_sources(Murli PRIVATE
     Source/PluginEditor.cpp
     Source/gui/RetroLookAndFeel.cpp
     Source/gui/Widgets.cpp
+    Source/gui/RearPanel.cpp
     Source/StandaloneApp.cpp)
 
 target_include_directories(Murli PRIVATE Source)

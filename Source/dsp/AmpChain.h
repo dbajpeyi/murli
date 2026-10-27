@@ -4,6 +4,7 @@
 #pragma once
 
 #include "DspUtil.h"
+#include "Pedals.h"
 
 namespace murli
 {
@@ -91,14 +92,8 @@ public:
         dcBlock.setCutoff (16.0, fs);
         tremolo.prepare (fs);
 
-        // Two 4"x8" ceramic ovals in an open-backed plastic lid.
-        spkHP.highPass (95.0, 0.85, fs);
-        spkBody.peak (210.0, 1.0, 2.5, fs);
-        spkPresence.peak (2400.0, 1.3, 3.0, fs);
-        spkLP1.lowPass (6800.0, 0.75, fs);
-        spkLP2.lowPass (9500.0, 0.6, fs);
-        diHP.highPass (25.0, 0.7, fs);
-        diLP.setCutoff (14000.0, fs);
+        for (auto& o : out) o.prepare (fs);
+        pedals.prepare (fs);
         hissLP.setCutoff (7000.0, fs);
 
         humPhase = 0.0;
@@ -114,13 +109,16 @@ public:
 
     void reset()
     {
-        pickupHP.reset(); preClip.reset(); preLP.reset(); dcBlock.reset(); paRail.reset();
-        spkHP.reset(); spkBody.reset(); spkPresence.reset(); spkLP1.reset(); spkLP2.reset();
-        diHP.reset(); diLP.reset(); hissLP.reset();
+        pickupHP.reset(); preClip.reset(); preLP.reset(); dcBlock.reset(); hissLP.reset();
+        for (auto& o : out) o.reset();
+        pedals.reset();
     }
 
     void setTremoloRate (double hz) { tremolo.setRate (hz); }
     float lamp() const noexcept     { return tremolo.lamp(); }
+    float chorusLed() const noexcept { return pedals.chorusLed(); }
+
+    void setPedals (const PedalSettings& p) { pedals.set (p); }
 
     void setTargets (const AmpSettings& s)
     {
@@ -131,39 +129,77 @@ public:
         noise.setTarget (s.noise);
     }
 
-    // In-place, mono.
-    void process (float* buf, int n) noexcept
+    // left[] holds the summed pickup signal on entry; left/right get the stereo output.
+    void process (float* left, float* right, int n) noexcept
     {
+        // With every pedal bypassed and silent the loop is a wire: run one side, copy it.
+        const bool mono = pedals.transparent();
+
         for (int i = 0; i < n; ++i)
         {
             const float trem = tremolo.next (vibrato.next());
 
             // --- pickup network + preamp (tremolo modulates the loop gain) ---
-            float x = pickupHP.process (buf[i]) * kPickupToPreamp * drive.next();
+            float x = pickupHP.process (left[i]) * kPickupToPreamp * drive.next();
             x = preClip.process (x * trem);
             x = dcBlock.process (preLP.process (x));
 
-            // preamp hiss rides on the signal into the volume pot
+            // preamp hiss rides on the signal into the loop and the volume pot
             const float nz = noise.next();
             if (nz > 0.0f)
                 x += hissLP.process (rng.next()) * 0.0009f * nz;
 
-            // --- volume pot (audio taper) → power amp ---
-            const float v = volume.next();
-            float a = x * (v * v * (0.4f + 0.6f * v)) * kPowerAmpGain;
-            a = paRail.process (a);
-            if (nz > 0.0f)
-                a += humSample() * 0.0016f * nz;
+            // --- effects loop: SEND → pedals → RETURN ---
+            // Always fed: a bypassed chorus keeps its delay chip filled and its LFO running.
+            float l, r;
+            pedals.process (x, l, r);
 
-            // --- lid speakers vs. direct ---
-            const float cab = spkLP2.process (spkLP1.process (spkPresence.process (spkBody.process (spkHP.process (a)))));
-            const float di  = diLP.process (diHP.process (a));
+            // --- volume pot (audio taper) → power amp → lid speakers / direct ---
+            const float v = volume.next();
+            const float pot = v * v * (0.4f + 0.6f * v) * kPowerAmpGain;
+            const float hum = nz > 0.0f ? humSample() * 0.0016f * nz : 0.0f;
             const float s = speaker.next();
-            buf[i] = safetyClip ((di + s * (cab * kCabMakeup - di)) * kOutputTrim);
+            left[i] = out[0].process (l * pot, hum, s);
+            right[i] = mono ? left[i] : out[1].process (r * pot, hum, s);
         }
+
+        if (mono)
+            out[1] = out[0];   // keep the right side's filters primed for when a pedal engages
     }
 
 private:
+    // Power amp, lid speakers and direct out for one side of the stereo image.
+    struct OutputStage
+    {
+        void prepare (double fs)
+        {
+            // Two 4"x8" ceramic ovals in an open-backed plastic lid.
+            spkHP.highPass (95.0, 0.85, fs);
+            spkBody.peak (210.0, 1.0, 2.5, fs);
+            spkPresence.peak (2400.0, 1.3, 3.0, fs);
+            spkLP1.lowPass (6800.0, 0.75, fs);
+            spkLP2.lowPass (9500.0, 0.6, fs);
+            diHP.highPass (25.0, 0.7, fs);
+            diLP.setCutoff (14000.0, fs);
+        }
+        void reset()
+        {
+            paRail.reset(); spkHP.reset(); spkBody.reset(); spkPresence.reset();
+            spkLP1.reset(); spkLP2.reset(); diHP.reset(); diLP.reset();
+        }
+        float process (float x, float hum, float speakerMix) noexcept
+        {
+            const float a = paRail.process (x) + hum;
+            const float cab = spkLP2.process (spkLP1.process (spkPresence.process (spkBody.process (spkHP.process (a)))));
+            const float di  = diLP.process (diHP.process (a));
+            return safetyClip ((di + speakerMix * (cab * kCabMakeup - di)) * kOutputTrim);
+        }
+
+        SoftRailADAA paRail;
+        Biquad spkHP, spkBody, spkPresence, spkLP1, spkLP2, diHP;
+        OnePoleLP diLP;
+    };
+
     // Transparent below -1.4 dBFS; only a fully cranked amp ever reaches the knee.
     static float safetyClip (float x) noexcept
     {
@@ -191,10 +227,10 @@ private:
     double sampleRate = 48000.0, humPhase = 0.0, humInc = 0.0;
     Tremolo tremolo;
     OnePoleHP pickupHP, dcBlock;
-    OnePoleLP preLP, diLP, hissLP;
+    OnePoleLP preLP, hissLP;
     AsymClipperADAA preClip;
-    SoftRailADAA paRail;
-    Biquad spkHP, spkBody, spkPresence, spkLP1, spkLP2, diHP;
+    OutputStage out[2];
+    Pedalboard pedals;
     Smoothed drive, vibrato, volume, speaker, noise;
     Lcg rng;
 };
