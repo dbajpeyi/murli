@@ -210,8 +210,20 @@ void MurliProcessor::setShowingRear (bool rear)
     apvts.state.setProperty ("rear", rear, nullptr);
 }
 
+int MurliProcessor::getCurrentProgram()
+{
+    const int i = presets.currentIndex();
+    return i >= 0 && i < presets.numFactory() ? i : 0;
+}
+
+const String MurliProcessor::getProgramName (int index)
+{
+    return isPositiveAndBelow (index, presets.numFactory()) ? presets.entries()[(size_t) index].name : String();
+}
+
 void MurliProcessor::getStateInformation (MemoryBlock& dest)
 {
+    presets.writeToState();
     if (auto xml = apvts.copyState().createXml())
         copyXmlToBinary (*xml, dest);
 }
@@ -220,7 +232,10 @@ void MurliProcessor::setStateInformation (const void* data, int size)
 {
     if (auto xml = getXmlFromBinary (data, size))
         if (xml->hasTagName (apvts.state.getType()))
+        {
             apvts.replaceState (ValueTree::fromXml (*xml));
+            presets.readFromState();
+        }
 }
 
 AudioProcessor* JUCE_CALLTYPE createPluginFilter()

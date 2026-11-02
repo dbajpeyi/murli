@@ -31,6 +31,23 @@ RetroLookAndFeel::RetroLookAndFeel()
     logoFace  = Typeface::createSystemTypefaceFor (BinaryData::PacificoRegular_ttf, BinaryData::PacificoRegular_ttfSize);
     labelFace = Typeface::createSystemTypefaceFor (BinaryData::BebasNeueRegular_ttf, BinaryData::BebasNeueRegular_ttfSize);
     setDefaultSansSerifTypeface (labelFace);
+
+    // menus and dialogs: cream card stock with amber highlight
+    const Colour cream (0xfff3ead6), ink (0xff2a2119), amber (0xffe9a23b);
+    setColour (PopupMenu::backgroundColourId, cream);
+    setColour (PopupMenu::textColourId, ink);
+    setColour (PopupMenu::headerTextColourId, Colour (0xff8a2a20));
+    setColour (PopupMenu::highlightedBackgroundColourId, amber);
+    setColour (PopupMenu::highlightedTextColourId, ink);
+    setColour (AlertWindow::backgroundColourId, cream);
+    setColour (AlertWindow::textColourId, ink);
+    setColour (AlertWindow::outlineColourId, ink.withAlpha (0.4f));
+    setColour (TextEditor::backgroundColourId, Colours::white);
+    setColour (TextEditor::textColourId, ink);
+    setColour (TextEditor::outlineColourId, ink.withAlpha (0.4f));
+    setColour (TextEditor::focusedOutlineColourId, amber);
+    setColour (TextEditor::highlightColourId, amber.withAlpha (0.4f));
+    setColour (CaretComponent::caretColourId, ink);
 }
 
 Font RetroLookAndFeel::logoFont (float height) const  { return Font (FontOptions (logoFace).withHeight (height)); }

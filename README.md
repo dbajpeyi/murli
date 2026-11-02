@@ -30,6 +30,23 @@ with or endorsed by the maker of the original instrument.
 | **Noise** | Preamp hiss and mains hum, for authenticity. |
 | **Tune** | Reference pitch from A = 430 to 450 Hz. |
 
+### Presets
+
+The amber preset window on the lid steps through presets with ◀ ▶. Click the window itself
+for the full list. The window also appears on the rear panel, because presets include the
+pedal settings. Once you change anything, a `*` appears after the preset's name.
+
+- **Factory presets (12):** Classic 200A, Soft Ballad, Barking Lead, Vibrato Soul, Direct
+  Out, Cranked Amp, Dusty Rehearsal Room, Shimmer Chorus, Seasick Chorus, Drum Echo Dub,
+  Echo Swell Ambient and Surf Spring. They also appear in your DAW's preset/program menu.
+- **Your presets:** **SAVE** or **Save As…** stores the current sound under a name. The
+  menu can delete user presets and open the presets folder. Each preset is a small XML
+  file (`.murlipreset`), so you can back presets up or share them. The folder is
+  `~/Library/Audio/Presets/Murli` on macOS and `~/.config/Murli/Presets` on Linux.
+
+A preset stores sound settings only. It doesn't change the cabinet finish or which side of
+the instrument you're looking at.
+
 ### Rear panel: effects-loop mod
 
 ![Rear panel](docs/rear-panel.png)

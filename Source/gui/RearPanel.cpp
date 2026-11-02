@@ -330,7 +330,7 @@ void RearPanel::resized()
     spring.setBounds (kSpringBox);
     echo.setBounds (kEchoBox);
     chorus.setBounds (kChorusBox);
-    frontButton.setBounds (440, 34, 120, 26);
+    frontButton.setBounds (440, 40, 120, 22);
 }
 
 void RearPanel::update (float chorusLfo)
@@ -357,11 +357,6 @@ void RearPanel::paint (Graphics& g)
         g.setColour ((rng.nextBool() ? Colours::white : Colours::black).withAlpha (0.05f));
         g.fillRect (board.getX() + rng.nextFloat() * board.getWidth(), board.getY() + rng.nextFloat() * board.getHeight(), 2.0f, 1.0f);
     }
-    g.setColour (Colour (0xff120d09));   // vent holes either side of the serial plate
-    for (float x = 270.0f; x < 740.0f; x += 16.0f)
-        if (x < 380.0f || x > 620.0f)
-            for (float y : { 22.0f, 36.0f })
-                g.fillEllipse (x, y, 5, 5);
     RetroLookAndFeel::drawScrews (g, board, 8.0f);
 
     // effects-loop mod plates at each end
@@ -379,7 +374,7 @@ void RearPanel::paint (Graphics& g)
     // centre: serial plate and the stock jacks
     g.setColour (Colour (0xffd9cfb8));
     g.setFont (lnf.labelFont (12.0f).withExtraKerningFactor (0.3f));
-    g.drawText ("MURLI ELECTRONIC PIANO  -  MODEL 200  -  FX LOOP MOD", Rectangle<float> (300, 64, 400, 14), Justification::centred);
+    g.drawText ("MURLI ELECTRONIC PIANO  -  MODEL 200  -  FX LOOP MOD", Rectangle<float> (300, 68, 400, 14), Justification::centred);
     for (auto [x, label] : { std::pair<float, const char*> { 210.0f, "AUX OUT" }, { 790.0f, "PEDAL" } })
     {
         drawJack (g, { x, 40.0f }, 9.0f);

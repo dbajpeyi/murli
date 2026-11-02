@@ -3,7 +3,8 @@
 using namespace juce;
 
 MurliEditor::MurliEditor (MurliProcessor& p)
-    : AudioProcessorEditor (p), proc (p), keyboard (p.keyboardState), rear (p.apvts, lnf)
+    : AudioProcessorEditor (p), proc (p), keyboard (p.keyboardState), rear (p.apvts, lnf),
+      presetBar (p.presets)
 {
     setLookAndFeel (&lnf);
     canvas.setLookAndFeel (&lnf);
@@ -42,6 +43,9 @@ MurliEditor::MurliEditor (MurliProcessor& p)
     rearButton.setTooltip ("Turn the piano round: effects loop and pedals");
     rearButton.onClick = [this] { showRear (true); };
     rear.frontButton.onClick = [this] { showRear (false); };
+
+    // Presets cover the pedals too, so the bar follows you to the back of the instrument.
+    canvas.addAndMakeVisible (presetBar);
     showRear (proc.showingRear());
 
     setResizable (true, true);
@@ -82,6 +86,16 @@ void MurliEditor::showRear (bool showIt)
                           (Component*) &finishButton, (Component*) &rearButton })
         c->setVisible (! showIt);
     for (auto& k : knobs) k->setVisible (! showIt);
+    layoutPresetBar();
+}
+
+void MurliEditor::layoutPresetBar()
+{
+    if (rear.isVisible())
+        presetBar.setBounds (290, 8, 420, 26);   // top of the back panel, above FRONT PANEL
+    else
+        presetBar.setBounds (232, 216, 560, 30);  // on the lid, beside the pilot lamps
+    presetBar.toFront (false);
 }
 
 void MurliEditor::resized()
@@ -94,6 +108,7 @@ void MurliEditor::resized()
     finishButton.setBounds (846, 220, 110, 24);
     rearButton.setBounds (846, 252, 110, 24);
     rear.setBounds (0, 0, Cabinet::kWidth, Cabinet::kPlateBottom);
+    layoutPresetBar();
     keyboard.setBounds (Cabinet::kCheek, Cabinet::kFeltBottom,
                         Cabinet::kWidth - 2 * Cabinet::kCheek, Cabinet::kKeysBottom - Cabinet::kFeltBottom);
 
@@ -119,4 +134,5 @@ void MurliEditor::timerCallback()
     vibratoLamp.setBrightness (proc.lampLevel.load() * 1.4f);
     if (rear.isVisible())
         rear.update (proc.chorusLed.load());
+    presetBar.refresh();
 }

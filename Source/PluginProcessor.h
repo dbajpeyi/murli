@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "dsp/MurliEngine.h"
+#include "PresetManager.h"
 
 namespace ParamID
 {
@@ -44,10 +45,11 @@ public:
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.5; }
 
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram (int) override {}
-    const juce::String getProgramName (int) override { return "Default"; }
+    // The host's program list is the factory presets; user presets live in the editor.
+    int getNumPrograms() override { return presets.numFactory(); }
+    int getCurrentProgram() override;
+    void setCurrentProgram (int index) override { presets.loadFactory (index); }
+    const juce::String getProgramName (int index) override;
     void changeProgramName (int, const juce::String&) override {}
 
     void getStateInformation (juce::MemoryBlock&) override;
@@ -56,6 +58,7 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
     juce::AudioProcessorValueTreeState apvts;
+    PresetManager presets { apvts };
     juce::MidiKeyboardState keyboardState;
 
     // Read by the editor's timer.

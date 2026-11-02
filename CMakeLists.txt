@@ -51,9 +51,11 @@ juce_add_binary_data(MurliAssets SOURCES
 target_sources(Murli PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
+    Source/PresetManager.cpp
     Source/gui/RetroLookAndFeel.cpp
     Source/gui/Widgets.cpp
     Source/gui/RearPanel.cpp
+    Source/gui/PresetBar.cpp
     Source/StandaloneApp.cpp)
 
 target_include_directories(Murli PRIVATE Source)

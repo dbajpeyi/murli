@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "gui/Widgets.h"
 #include "gui/RearPanel.h"
+#include "gui/PresetBar.h"
 
 class MurliEditor final : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -17,6 +18,7 @@ private:
     void timerCallback() override;
     void applyFinish (const juce::String& name);
     void showRear (bool rear);
+    void layoutPresetBar();
 
     MurliProcessor& proc;
     RetroLookAndFeel lnf;
@@ -30,6 +32,7 @@ private:
     juce::TextButton finishButton, rearButton { "REAR PANEL" };
     std::vector<std::unique_ptr<Knob>> knobs;
     RearPanel rear;
+    PresetBar presetBar;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MurliEditor)
 };
