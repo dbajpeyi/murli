@@ -234,7 +234,20 @@ void MurliProcessor::setStateInformation (const void* data, int size)
         if (xml->hasTagName (apvts.state.getType()))
         {
             apvts.replaceState (ValueTree::fromXml (*xml));
-            presets.readFromState();
+
+            // A switch or selector keeps the raw value a host last sent (say 0.46, which reads
+            // as "off"). replaceState skips parameters whose restored value already matches,
+            // so restoring "off" over that left 0.46 showing in the host. Snap stepped
+            // parameters to the exact value they represent.
+            for (auto* param : getParameters())
+                if (auto* ranged = dynamic_cast<RangedAudioParameter*> (param))
+                {
+                    const float exact = ranged->convertTo0to1 (ranged->convertFrom0to1 (ranged->getValue()));
+                    if (std::abs (exact - ranged->getValue()) > 1.0e-6f)
+                        ranged->setValueNotifyingHost (exact);
+                }
+
+            presets.readFromState();   // after snapping, so a restored session isn't marked edited
         }
 }
 
